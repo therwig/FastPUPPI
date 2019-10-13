@@ -21,6 +21,13 @@ def calcMJJ(jets):
     jp4s = [ lvclass(j[0],j[1],j[2],0) for j in jets ]
     return max((j1+j2).M() for (j1,j2) in itertools.combinations(jp4s,2))
 
+def calcMJJ(jets):
+    if len(jets) <= 1: return 0
+    lvclass = ROOT.Math.LorentzVector("ROOT::Math::PtEtaPhiM4D<double>")
+    jp4s = [ lvclass(j[0],j[1],j[2],0) for j in jets ]
+    return max((j1+j2).M() if j1.Pt() > 70. and j2.Pt() > 40. and abs(j1.Eta()-j2.Eta()) > 4. and abs(j1.Phi()-j2.Phi()) < 2. else 0 for (j1,j2) in itertools.combinations(jp4s,2))
+
+
 class CalcJ:
     def __init__(self,index):
         self._index = index
@@ -51,7 +58,7 @@ def makeCalc(what):
     if what.startswith("ptj-mjj"): 
         return CalcJ2_MJJcut(float(what.replace("ptj-mjj","")))
 
-def makeGenArray(tree, what, ptCut, etaCut, _cache={}):
+def makeGenArray(tree, what, ptCut, etaCut, _cache={},requireFwdSignalJet=False):
     _key = (id(tree),what,int(ptCut*100),int(etaCut*1000))
     if _key in _cache: return _cache[_key]
     if what == "metmht":
@@ -74,6 +81,7 @@ def makeGenArray(tree, what, ptCut, etaCut, _cache={}):
         tree.GetEntry(i)
         pt,eta,phi = tree.GenJets_pt, tree.GenJets_eta, tree.GenJets_phi
         jets = [ (pt[j],eta[j],phi[j]) for j in xrange(tree.nGenJets) if pt[j] > ptCut and abs(eta[j]) < etaCut ]
+        if requireFwdSignalJet and max(abs(eta[0]),abs(eta[1]))<3.4: continue
         ret.append(calc(jets))
     _cache[_key] = ret
     progress.done("done, %d entries" % len(ret))
@@ -228,6 +236,7 @@ parser.add_option("-v", dest="var",  default="ht", help="Choose variable (ht, me
 parser.add_option("--xlabel","--varlabel", dest="varlabel", default=None, help="X axis label for the variable")
 parser.add_option("--xmax", dest="xmax",  default=None, type=float, help="Choose variable")
 parser.add_option("--logxbins", dest="logxbins",  default=None, nargs=2, type=float, help="--logxbins N X will make N bins, the last being a factor X larger than the first")
+parser.add_option("-F","--fwd", dest="requireFwdSignalJet", default=False, action="store_true", help="Require that one of the signal jets for m(jj) have |eta|>3.4")
 options, args = parser.parse_args()
 
 tfiles = [ROOT.TFile.Open(f) for f in args[:2]]
@@ -295,7 +304,7 @@ jecfile = ROOT.TFile.Open(options.jecs)
 for plotkind in options.plots.split(","):
   print "Make plot "+plotkind
   if plotkind != "rate":
-    genArray = makeGenArray(signal, what, options.pt, options.eta)
+    genArray = makeGenArray(signal, what, options.pt, options.eta,options.requireFwdSignalJet)
   rates = map(float, options.rate.split(","))
   if plotkind != "isorate": rates = rates[:1]
   for targetrate in rates:
