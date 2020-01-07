@@ -94,6 +94,13 @@ def makeGenMETArray(tree, what, etaCut):
 def makeCorrArray(tree, what, obj, ptCorrCut, etaCut, corr, _cache={}):
     _key = (id(tree),what,obj,int(ptCorrCut*100),int(etaCut*1000))
     if _key in _cache: return _cache[_key]
+    if what == "metCorr":
+        met = makeRecoMETArray(tree, what, obj, etaCut)
+        mht = makeCorrArray(tree, "mht", obj, ptCorrCut, etaCut, None, _cache=_cache)
+        mhtCorr = makeCorrArray(tree, "mht", obj, ptCorrCut, etaCut, corr, _cache=_cache)
+        ret = met + (mhtCorr-mht)
+        _cache[_key] = ret
+        return ret
     if what == "metmht":
         met = makeCorrArray(tree, "met", obj, ptCorrCut,    5.0, corr, _cache=_cache)
         mht = makeCorrArray(tree, "mht", obj, ptCorrCut, etaCut, corr, _cache=_cache)
@@ -277,7 +284,7 @@ elif options.var.startswith("ptj-mjj"):
     options.pt = 10
     qualif = "|#eta| < %.1f, m(jj) > %s" % (options.eta, options.var.replace("ptj-mjj",""))
     what = options.var
-elif options.var.startswith("met"):
+elif options.var.startswith("met") or options.var.startswith("metCorr"):
     if options.varlabel is None: options.varlabel = "E_{T}^{miss}"
     if options.genht    is None: options.genht    = 150
     if options.xmax     is None: options.xmax     = 500
