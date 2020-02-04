@@ -104,6 +104,10 @@ def makeCorrArray(tree, what, obj, ptCorrCut, etaCut, corr, _cache={}):
         ret = makeRecoMETArray(tree, what, obj, etaCut)
         _cache[_key] = ret
         return ret
+    if "corrMet" in what:
+        ret = makeCorrMetArray(tree, obj, ptCorrCut, etaCut, corr, _cache)
+        _cache[_key] = ret
+        return ret
     calc = makeCalc(what)
     ret = []
     if not tree.GetBranch("n"+obj+"Jets"): 
@@ -146,7 +150,44 @@ def makeRecoMETArray(tree, what, obj, etaCut):
         ret.append(getattr(tree,obj+post))
     progress.done("done, %d entries" % len(ret))
     return ret
-
+def makeCorrMetArray(tree, obj, ptCorrCut, etaCut, corr, _cache={}):
+    ret = []
+    if   etaCut <= 1.5: post = "MetBarrel_pt" 
+    elif etaCut <= 2.4: post = "MetCentral_pt"
+    else:               post = "Met_pt"
+    if not tree.GetBranch(obj+post): 
+        return None
+    if not tree.GetBranch("n"+obj+"Jets"): 
+        return None
+    progress = _progress("Reading "+obj+"Jets ...")
+    tree.SetBranchStatus("*",0);
+    tree.SetBranchStatus("n"+obj+"Jets",1);
+    tree.SetBranchStatus(obj+"Jets_pt",1);
+    tree.SetBranchStatus(obj+"Jets_eta",1);
+    tree.SetBranchStatus(obj+"Jets_phi",1);
+    tree.SetBranchStatus(obj+post,1);
+    tree.SetBranchStatus(obj+post+"Phi",1);
+    corr_vec = TVector2()
+    tmp_vec = TVector2()
+    for i in xrange(tree.GetEntries()):
+        tree.GetEntry(i)
+        number = getattr(tree, "n"+obj+"Jets")
+        rawpt,eta,phi = getattr(tree, obj+"Jets_pt"), getattr(tree, obj+"Jets_eta"), getattr(tree, obj+"Jets_phi")
+        jets = [ ]
+        corr_vec.SetMagPhi(0,0)
+        for j in xrange(number):
+            if abs(eta[j]) > etaCut: continue
+            if corr and pt > ptCorrCut:
+                tmp_vec.SetMagPhi(corr.correctedPt(rawpt[j], eta[j])-rawpt[j], phi[j])
+                corr_vec += tmp_vec
+        tmp_vec.SetMagPhi(getattr(tree,obj+post),getattr(tree,obj+post+"Phi"))
+        # corrected MET = old MET + (JEC-HTmiss - no-JEC-HTmiss)
+        # subtract (JEC-noJEC) here instead of adding since 'HTmiss = - vector sum of jets'
+        corr_vec = tmp_vec - corr_vec         
+        ret.append(corr_vec.Mag())
+    _cache[_key] = ret
+    progress.done("done, %d entries" % len(ret))
+    return ret
 
 def genCutCorrArray(corrArray, genArray, genThr):
     if len(genArray) != len(corrArray): raise RuntimeError("Mismatch")
@@ -282,6 +323,15 @@ elif options.var.startswith("met"):
     if options.genht    is None: options.genht    = 150
     if options.xmax     is None: options.xmax     = 500
     what = "met"
+    options.eta = 5.0 
+    if "Central" in options.var:  options.eta = 2.4 
+    elif "Barrel" in options.var: options.eta = 1.5
+    qualif = "|#eta| < %.1f" % options.eta
+elif options.var.startswith("corrMet"):
+    if options.varlabel is None: options.varlabel = "E_{T}^{miss}"
+    if options.genht    is None: options.genht    = 150
+    if options.xmax     is None: options.xmax     = 500
+    what = "corrMet"
     options.eta = 5.0 
     if "Central" in options.var:  options.eta = 2.4 
     elif "Barrel" in options.var: options.eta = 1.5
