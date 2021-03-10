@@ -144,6 +144,21 @@ monitorPerf("L1TKV", "l1pfCandidates:TKVtx", makeRespSplit = False, makeJets=Fal
 monitorPerf("L1PF", "l1pfCandidates:PF")
 monitorPerf("L1Puppi", "l1pfCandidates:Puppi")
 
+# def addSeededConeJets(what="Puppi",src="l1pfCandidates:Puppi"):
+#     process.load('L1Trigger.Phase2L1ParticleFlow.L1SeedConePFJetProducer_cfi')
+#     scModule = process.L1SeedConePFJetProducer.clone(L1PFObjects = src)
+#     setattr(process, 'sc'+what, scModule)
+#     process.extraPFStuff.add(scModule)
+#     setattr(process.l1pfjetTable.jets, 'sc'+what, cms.InputTag('sc'+what))
+
+def addMetEmulator(what="Puppi",src="l1pfCandidates:Puppi"):
+    process.load('L1Trigger.Phase2L1ParticleFlow.L1MetPFHWProducer_cfi')
+    metEmulatorModule = process.L1MetPFHWProducer.clone(src = src, maxCands=128)
+    setattr(process, 'met'+what+'HW', metEmulatorModule)
+    process.extraPFStuff.add( metEmulatorModule )
+    setattr(process.l1pfmetTable.mets, what+'HW', cms.InputTag('met'+what+'HW'))
+
+
 for D in ['Barrel','HF','HGCal','HGCalNoTK']:
     monitorPerf("L1%sCalo"%D,"l1pfProducer%s:Calo"%D, makeResp=False, makeRespSplit=False, makeJets=False, makeMET=False, 
                makeCentralMET=False, makeBarrelMET=False, makeInputMultiplicities=True)
@@ -645,3 +660,5 @@ def addCTL1():
     monitorPerf("L1CTPF", "l1ctLayer1:PF")
     monitorPerf("L1CTPuppi", "l1ctLayer1:Puppi")
 
+addSeededConeJets() # ch add
+#addMetEmulator() # ch add
