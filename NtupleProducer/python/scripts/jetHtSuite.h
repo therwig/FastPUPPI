@@ -35,6 +35,13 @@ unsigned int fillTH1Fast(TH1F *ret, const std::vector<float> & corrArr) {
     ret->GetBinContent(nbins+1, 0);
     return corrArr.size();
 }
+unsigned int fillTH2Fast(TH2F *ret, const std::vector<float> & xArr, const std::vector<float> & corrArr) {
+    assert(xArr.size() == corrArr.size());
+    for (unsigned int i = 0, n = corrArr.size(); i < n; ++i) {
+        ret->Fill(xArr[i], corrArr[i]);
+    }
+    return corrArr.size();
+}
 
 void fillTEffFast(TEfficiency *eff, const std::vector<float> & refArr, const std::vector<float> & corrArr, float corrThr) {
     assert(refArr.size() == corrArr.size());
@@ -50,6 +57,25 @@ TGraph *makeROCFast(TH1 *effsig, TH1 *effbkg) {
     }
     return graph;
 }
+
+class JetResolutionCalc {
+ public:
+    JetResolutionCalc() {}
+ JetResolutionCalc(int nbins, const double* bins, const std::vector<TF1> & resos) : n_(nbins), ax(nbins, bins) {
+        for(int i=0;i<n_;i++) resos_.push_back(resos[i]);
+    }
+    float GetRelReso(float abseta, float pt, bool debug=0) const {
+        int ibin=ax.FindBin(abseta);
+        if (ibin<1 ) ibin=1;
+        if (ibin>n_) ibin=n_;
+        if (debug) printf(" eta bin = %f, %d  \n",abseta, ibin);
+        return resos_[ibin-1](pt);
+    }
+ protected:
+    int n_;
+    std::vector<TF1> resos_;
+    TAxis ax;
+};
 
 class JetCalcBase {
     public:
@@ -125,8 +151,75 @@ class CalcJ2_MJJcut : public JetCalcBase {
     protected:
         float mjj_;
 };
-
-
+class CalcMHTSig_MHTcut : public JetCalcBase {
+    public:
+ CalcMHTSig_MHTcut(JetResolutionCalc resoCalc, float mht) : JetCalcBase(), resoCalc_(resoCalc),mht_(mht)  {}
+        virtual float operator()(const std::vector<Jet> & jets) const {
+            float x,y,r;
+            float retx = 0, rety = 0;
+            float retxe= 0, retye= 0;
+            for (const auto & j : jets) {
+                x = j.pt() * std::cos(j.phi());
+                y = j.pt() * std::sin(j.phi());
+                r = resoCalc_.GetRelReso(fabs(j.eta()), j.pt());
+                retx += x;
+                rety += y;
+                retxe += x * r;
+                retye += y * r;
+            }
+            return std::hypot(retx,rety) < mht_ ? 0 : std::hypot(retx,rety) / std::hypot(retxe,retye);
+        }
+    protected:
+        JetResolutionCalc resoCalc_;
+        float mht_;
+};
+class CalcMHTCorr : public JetCalcBase {
+    public:
+        CalcMHTCorr(JetResolutionCalc resoCalc, float sigma) : JetCalcBase(), resoCalc_(resoCalc),sigma_(sigma)  {}
+        void SetSigma(float s){sigma_=s;}
+        virtual float operator()(const std::vector<Jet> & jets) const {
+            float x,y,r;
+            float retx = 0, rety = 0;
+            float retxe= 0, retye= 0;
+            for (const auto & j : jets) {
+                x = j.pt() * std::cos(j.phi());
+                y = j.pt() * std::sin(j.phi());
+                r = resoCalc_.GetRelReso(fabs(j.eta()), j.pt());
+                retx += x;
+                rety += y;
+                retxe += x * r;
+                retye += y * r;
+            }
+            float ret= std::hypot(retx,rety) - sigma_ * std::hypot(retxe,retye);
+            if (ret<0) ret=0;
+            return ret;
+            // sigma=2 means we are 95% sure that MET is below this value...
+        }
+    protected:
+        JetResolutionCalc resoCalc_;
+        float sigma_;
+};
+class CalcMHTSig : public JetCalcBase {
+    public:
+        CalcMHTSig(JetResolutionCalc resoCalc) : JetCalcBase(), resoCalc_(resoCalc)  {}
+        virtual float operator()(const std::vector<Jet> & jets) const {
+            float x,y,r;
+            float retx = 0, rety = 0;
+            float retxe= 0, retye= 0;
+            for (const auto & j : jets) {
+                x = j.pt() * std::cos(j.phi());
+                y = j.pt() * std::sin(j.phi());
+                r = resoCalc_.GetRelReso(fabs(j.eta()), j.pt());
+                retx += x;
+                rety += y;
+                retxe += x * r;
+                retye += y * r;
+            }
+            return jets.size()==0 ? 0 : std::hypot(retx,rety) / std::hypot(retxe,retye);
+        }
+    protected:
+        JetResolutionCalc resoCalc_;
+};
 
 
 std::vector<float> makeJetArray(TTree *tree, const std::string & obj, float ptCut, float etaCut, const JetCalcBase &calc, const l1tpf::corrector *jetcorr = nullptr) {
@@ -138,7 +231,7 @@ std::vector<float> makeJetArray(TTree *tree, const std::string & obj, float ptCu
 
     //printf("Reading from tree %s (%llu entries) the %sJets, ptCut %g, etaCut %g\n", tree->GetDirectory()->GetFile()->GetName(), tree->GetEntries(), obj.c_str(), ptCut, etaCut);
     std::vector<JetCalcBase::Jet> jets;
-    //unsigned int iev = 0;
+    /* unsigned int iev = 0; */
     while (reader.Next()) {
         jets.clear();
         unsigned int njets = jet_pt.GetSize();

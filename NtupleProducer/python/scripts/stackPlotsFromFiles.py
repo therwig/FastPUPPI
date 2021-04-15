@@ -9,8 +9,8 @@ ROOT.gErrorIgnoreLevel = ROOT.kWarning
 
 from optparse import OptionParser
 parser = OptionParser("%(prog) out what [name1=]file1[,color1]  [name1=]file2[,color2] ...  ")
-parser.add_option("--logy", dest="logy", action="store_false", default=False, help="Log y axis")
-parser.add_option("--liny", dest="logy", action="store_false", default=False, help="Linear y axis")
+parser.add_option("--logy", dest="logy", action="store_true", default=False, help="Log y axis")
+parser.add_option("--liny", dest="logy", action="store_true", default=False, help="Linear y axis")
 parser.add_option("--legend", dest="legend", default="BR", help="Legend placement: BR, TR")
 #parser.add_option("-W", dest="what_reg",     default=None, help="Choose set (inputs, l1pf, ...)")
 #parser.add_option("-P","--plots", dest="plots", default="rate,isorate,roc,effc", help="Choose plot or comma-separated list of plots")
@@ -93,6 +93,8 @@ c1 = ROOT.TCanvas("c1","c1")
 c1.SetLogy(options.logy)
 if options.legend == "TR":
     leg = ROOT.TLegend(0.6,0.99,0.95,0.99-0.06*len(labels))
+elif options.legend == "TL":
+    leg = ROOT.TLegend(0.2,0.9,0.55,0.9-0.06*len(labels))
 elif options.legend == "BR":
     leg = ROOT.TLegend(0.6,0.19,0.95,0.19+0.06*len(labels))
 else:

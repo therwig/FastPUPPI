@@ -34,6 +34,20 @@ process.GlobalTag = GlobalTag(process.GlobalTag, '111X_mcRun4_realistic_Candidat
 
 process.load("L1Trigger.Phase2L1ParticleFlow.l1ParticleFlow_cff")
 
+
+###
+l1pfCandidates = cms.EDProducer("L1TPFCandMultiMerger",
+    pfProducers = cms.VInputTag(
+        cms.InputTag("l1pfProducerBarrel"),
+        cms.InputTag("l1pfProducerHGCal"),
+        cms.InputTag("l1pfProducerHGCalNoTK"),
+        cms.InputTag("l1pfProducerHF")
+    ),
+    labelsToMerge = cms.vstring("Calo", "TK", "TKVtx", "PF", "Puppi"),
+    regionalLabelsToMerge = cms.vstring(),
+)
+
+
 process.extraPFStuff = cms.Task()
 
 process.runPF = cms.Sequence( 
@@ -99,6 +113,34 @@ def monitorPerf(label, tag, makeResp=True, makeRespSplit=True, makeJets=True, ma
                 process.ntuple.copyUInts.append( "%s:%sNL1%s%s" % (D,X,P,O))
             process.ntuple.copyVecUInts.append( "%s:vecNL1%s%s" % (D,P,O))
 
+# process.puppiInvZMarker = cms.EDProducer("L1PFInvZMarker",
+#     L1PFObjects = cms.InputTag("l1pfCandidates:Puppi"),
+#     genParticles = cms.InputTag("genParticlesForMETAllVisible"),
+#                                          #genParticles = cms.InputTag("genParticles"),
+# )
+# process.extraPFStuff.add( process.puppiInvZMarker )
+# process.genMetInvZTrue = process.genMetTrue.clone(src = cms.InputTag("puppiInvZMarker:genParticlesInvZ"))
+# process.extraPFStuff.add( process.genMetInvZTrue )
+
+
+#monitorPerf("L1Puppi", "l1pfCandidates:Puppi")
+
+
+    # def _add(name, what):
+    #     setattr(process, name, what)
+    #     process.extraPFStuff.add(what)
+    #    _add('ak4'+label, ak4PFJets.clone(src = tag, doAreaFastjet = False))
+    #     setattr(process.l1pfjetTable.jets, label, cms.InputTag('ak4'+label))
+    # if makeMET:
+    #     _add('met'+label, pfMet.clone(src = tag, calculateSignificance = False))
+    #     setattr(process.l1pfmetTable.mets, label, cms.InputTag('met'+label))
+    #     if makeCentralMET:
+    #         _add('central'+label, cms.EDFilter("CandPtrSelector", src = cms.InputTag(tag), cut = cms.string("abs(eta) < 2.4")))
+    #         _add('met'+label+'Central', pfMet.clone(src = 'central'+label, calculateSignificance = False))
+    #         setattr(process.l1pfmetCentralTable.mets, label, cms.InputTag('met'+label+'Central'))
+ 
+
+
 process.ntuple = cms.EDAnalyzer("ResponseNTuplizer",
     genJets = cms.InputTag("ak4GenJetsNoNu"),
     genParticles = cms.InputTag("genParticles"),
@@ -130,6 +172,7 @@ process.l1pfjetTable = cms.EDProducer("L1PFJetTableProducer",
 )
 
 process.l1pfmetTable = cms.EDProducer("L1PFMetTableProducer",
+    # genMet = cms.InputTag("genMetInvZTrue"), 
     genMet = cms.InputTag("genMetTrue"), 
     flavour = cms.string(""),
     mets = cms.PSet(
@@ -137,12 +180,18 @@ process.l1pfmetTable = cms.EDProducer("L1PFMetTableProducer",
 )
 process.l1pfmetCentralTable = process.l1pfmetTable.clone(genMet = "genMetCentralTrue", flavour = "Central")
 process.l1pfmetBarrelTable  = process.l1pfmetTable.clone(genMet = "genMetBarrelTrue", flavour = "Barrel")
+#process.l1pfmetInvZTable    = process.l1pfmetTable.clone(genMet = "genMetInvZTrue", flavour = "")
+# process.l1pfmetTable.mets.genMetInvZTrue = process.genMetInvZTrue
 
 monitorPerf("L1Calo", "l1pfCandidates:Calo", makeRespSplit = False)
 monitorPerf("L1TK", "l1pfCandidates:TK", makeRespSplit = False, makeJets=False, makeMET=False)
 monitorPerf("L1TKV", "l1pfCandidates:TKVtx", makeRespSplit = False, makeJets=False, makeMET=False)
 monitorPerf("L1PF", "l1pfCandidates:PF")
 monitorPerf("L1Puppi", "l1pfCandidates:Puppi")
+# monitorPerf("L1PuppiInvZ", "puppiInvZMarker:L1PFObjectsInvZ")
+
+# process.extraPFStuff.ak4L1Puppi.src = "puppiInvZMarker"
+# process.extraPFStuff.metL1Puppi.src = "puppiInvZMarker"
 
 for D in ['Barrel','HF','HGCal','HGCalNoTK']:
     monitorPerf("L1%sCalo"%D,"l1pfProducer%s:Calo"%D, makeResp=False, makeRespSplit=False, makeJets=False, makeMET=False, 
@@ -238,7 +287,7 @@ process.outnano = cms.OutputModule("NanoAODOutputModule",
     SelectEvents = cms.untracked.PSet(SelectEvents = cms.vstring('p')),
     outputCommands = cms.untracked.vstring("drop *", "keep nanoaodFlatTable_*Table_*_*"),
     compressionLevel = cms.untracked.int32(4),
-    compressionAlgorithm = cms.untracked.string("ZLIB"),
+    compressionAlgorithm = cms.untracked.string("ZLIB")
 )
 process.end = cms.EndPath(process.outnano)
 
@@ -645,3 +694,62 @@ def addCTL1():
     monitorPerf("L1CTPF", "l1ctLayer1:PF")
     monitorPerf("L1CTPuppi", "l1ctLayer1:Puppi")
 
+def makeInvisibleZ():
+    process.markInvisibleZ = cms.EDProducer("L1PFInvZMarker",
+        L1PFObjects = cms.InputTag("l1pfCandidates:Puppi"),
+        genParticles = cms.InputTag("genParticlesForMETAllVisible"),
+        genJets = cms.InputTag("ak4GenJetsNoNu"),
+    )
+    process.extraPFStuff.add( process.markInvisibleZ )
+
+    # update the gen Met calculation to new genPart collection
+    process.genMetInvZTrue = process.genMetTrue.clone( src = cms.InputTag("markInvisibleZ:genParticlesInvZ") )
+    process.extraPFStuff.add( process.genMetInvZTrue )
+    process.l1pfmetTable = process.l1pfmetTable.clone( genMet = "genMetInvZTrue")
+    process.l1pfjetTable = process.l1pfjetTable.clone( gen = cms.InputTag("markInvisibleZ:genJetsInvZ"),
+                                                       jets = cms.PSet(
+                                                           Gen = cms.InputTag("markInvisibleZ:genJetsInvZ"),
+                                                           Gen_sel = cms.string("pt > 15"),
+                                                       ))
+
+    # substitute barrel/central gen inputs
+    process.centralGen = process.centralGen.clone( src = cms.InputTag("markInvisibleZ:genParticlesInvZ") )
+    process.barrelGen = process.barrelGen.clone( src = cms.InputTag("markInvisibleZ:genParticlesInvZ") )
+
+    # update puppi
+    monitorPerf("L1Puppi", "markInvisibleZ:L1PFCandidatesInvZ")
+
+    # process.highMet = cms.EDFilter("CandViewSelector",
+    #                                src = cms.InputTag("genMetInvZTrue"),
+    #                                cut = cms.string("pt > 10.0")
+    #                            )
+    # process.p += process.highMet
+
+makeInvisibleZ()
+
+#addEDMOutput()
+
+# process.load("L1Trigger.Phase2L1ParticleFlow.L1MetPfProducer_cfi")
+
+# process.L1PuppiMetEmulator = process.L1MetPfProducerNT.clone(L1PFObjects = "l1pfCandidates:Puppi", maxCands=cms.int32(128))
+# process.extraPFStuff.add(process.L1PuppiMetEmulator)
+# process.l1pfmetTable.mets.L1PuppiMetEmulator = cms.InputTag('L1PuppiMetEmulator')
+
+# process.L1PuppiMetEmulatorNoLimit = process.L1MetPfProducerNT.clone(L1PFObjects = "l1pfCandidates:Puppi", maxCands=cms.int32(-1))
+# process.extraPFStuff.add(process.L1PuppiMetEmulatorNoLimit)
+# process.l1pfmetTable.mets.L1PuppiMetEmulatorNoLimit = cms.InputTag('L1PuppiMetEmulator')
+
+# process.L1CTPuppiMetEmulator = process.L1MetPfProducerNT.clone(L1PFObjects = "l1ctLayer1:Puppi", maxCands=cms.int32(128))
+# process.extraPFStuff.add(process.L1CTPuppiMetEmulator)
+# process.l1pfmetTable.mets.L1CTPuppiMetEmulator = cms.InputTag('L1CTPuppiMetEmulator')
+
+# process.L1CTPuppiMetEmulatorNoLimit = process.L1MetPfProducerNT.clone(L1PFObjects = "l1ctLayer1:Puppi", maxCands=cms.int32(-1))
+# process.extraPFStuff.add(process.L1CTPuppiMetEmulatorNoLimit)
+# process.l1pfmetTable.mets.L1CTPuppiMetEmulatorNoLimit = cms.InputTag('L1CTPuppiMetEmulator')
+
+#addSeededConeJets()
+#firmwareLike()
+#addBitwise()
+#addCTL1()
+
+#process.maxEvents.input = 10

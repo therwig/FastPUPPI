@@ -413,6 +413,9 @@ whats = [
         ("Old Tuned",   "L1Puppi$",       ROOT.kRed, 20, 1.5),
         ("New",         "L1CTPuppi$",     ROOT.kGreen+2, 20, 1.0),
     ]),
+    ('ch_cfg',[
+        ("L1Puppi",   "L1Puppi$",       ROOT.kRed, 20, 1.5),
+    ]),
 
 ]
 
@@ -446,6 +449,7 @@ if __name__ == "__main__":
     parser.add_option("-M", "--max-entries", dest="maxEntries",  default=999999999, type=int)
     parser.add_option("--mc", "--mc", dest="mcpt",  default="mc_pt")
     parser.add_option("--xpt", "--xpt", dest="xpt",  default=("mc_pt","p_{T}^{gen}"), nargs=2)
+    parser.add_option("--writeResolutions", dest="writeResolutions", default=False, action="store_true")
     options, args = parser.parse_args()
     selparticles = options.particle.split(",") if options.particle else []
 
@@ -493,6 +497,7 @@ if __name__ == "__main__":
 
     odir = args[0] # "plots/910pre2/test"
     plotter = plotTemplate(odir)
+    responses_to_write=[]
     for oname,cut in sels:
         print "Plotting ",oname
         isNeutrino = oname.startswith("null")
@@ -576,6 +581,12 @@ if __name__ == "__main__":
                     allplots += [ (gresols, "resolution_gauss", "_res_gauss") ]
                 #allplots += [ (cresps, "response_corr", "_corr") ]
                 for plots,ptype,pfix in allplots:
+                    if "resolution" in ptype and options.writeResolutions: 
+                        for n,p in plots:
+                            if hasattr(p,'fit') and (options.fit != "none"):
+                                clean_name = p.fit.GetName().strip('_rf1').replace(' ','_').replace('#','')
+                                responses_to_write += [p.fit.Clone(clean_name+"_"+oname)]
+                                print "writing", responses_to_write[-1].GetName()
                     if "resolution" in ptype  and options.noResol: continue
                     if not plots: 
                         if "_pt" in oname and ("resolution" in ptype) and ptdef.startswith("pt"): continue # not implemented
@@ -678,3 +689,8 @@ if __name__ == "__main__":
                     fout.Close()
                     del frame
 
+    if options.writeResolutions:
+        fout = ROOT.TFile.Open(odir+'/resolutions.root', "RECREATE")
+        for r in responses_to_write:
+            fout.WriteTObject(r)
+        fout.Close()
