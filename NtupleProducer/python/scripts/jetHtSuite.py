@@ -21,8 +21,7 @@ def makeCalcCpp(what, jer):
     if what.startswith("mhtEvtCorr"):
         return ROOT.CalcMHTCorrEvt(jer, float(what.replace("mhtEvtCorr","")))
     if what.startswith("mhtcorr"):
-        # return ROOT.CalcMHTCorrEvt(jer, float(what.replace("mhtcorr","")))
-        return ROOT.CalcMHTCorr(jer, float(what.replace("mhtcorr","")))
+        return ROOT.CalcMHTCorrJet(jer, float(what.replace("mhtcorr","")))
     if what.startswith("mhttoy"):
         return ROOT.CalcMHTToy(jer, float(what.replace("mhttoy","")))
     if what.startswith("mhtsig-mht"):
@@ -178,14 +177,6 @@ whats = WHATS + [
         ("BitwisePF",   "L1PuppiBitwisePF$",  ROOT.kAzure+1, 20, 1.1),
         ("BitwisePuppi","L1PuppiBitwise$",    ROOT.kGreen+2, 20, 0.8),
     ]),
-    # ('ch_cfg',[
-    #     ("L1Puppi",      "L1Puppi$",      ROOT.kGray+2, 20, 2.0),
-    #     # ("L1CT",     "L1CTPuppi$",           ROOT.kRed+1, 20, 1.7),
-    #     # ("TDR Em128",    "L1PuppiMetEmulator$",   ROOT.kViolet+1, 20, 1.4),
-    #     # ("L1CT Emulator",   "L1CTPuppiMetEmulator$",  ROOT.kAzure+1, 20, 1.1),
-    #     # ("TDR Em","L1PuppiMetEmulatorNoLimit$",    ROOT.kGreen+2, 20, 0.8),
-    #     # ("L1CT Emulator NoMax",    "L1CTPuppiMetEmulatorNoLimit$",  ROOT.kRed+2, 20, 0.9), 
-    # ]),
 ]
 
 from optparse import OptionParser

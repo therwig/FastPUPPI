@@ -108,7 +108,8 @@ for n,p in zip(labels,tobjs):
 leg.Draw()
 
 
-if (args[0].endswith('.root') or args[0].endswith('.eps') or args[0].endswith('.png') or args[0].endswith('.pdf')):
+if ('.' in args[0][-5:-3]):
+    # already has extension .xxxx or .yyy (eg .root, .eps)
     c1.Print(args[0])
     print "Wrote %s" % args[0]
 else: 
