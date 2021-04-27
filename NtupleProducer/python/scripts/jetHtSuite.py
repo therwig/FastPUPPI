@@ -18,10 +18,17 @@ def makeCalcCpp(what, jer):
         return ROOT.CalcMHT()
     if what == "mhtsig": 
         return ROOT.CalcMHTSig(jer)
+    if what.startswith("mhtEvtCorr"):
+        return ROOT.CalcMHTCorrEvt(jer, float(what.replace("mhtEvtCorr","")))
     if what.startswith("mhtcorr"):
+        # return ROOT.CalcMHTCorrEvt(jer, float(what.replace("mhtcorr","")))
         return ROOT.CalcMHTCorr(jer, float(what.replace("mhtcorr","")))
+    if what.startswith("mhttoy"):
+        return ROOT.CalcMHTToy(jer, float(what.replace("mhttoy","")))
     if what.startswith("mhtsig-mht"):
         return ROOT.CalcMHTSig_MHTcut(jer, float(what.replace("mhtsig-mht","")))
+    if what.startswith("mht-mhtsig"):
+        return ROOT.CalcMHT_MHTSigcut(jer, float(what.replace("mht-mhtsig","")))
     if what == "mjj": 
         return ROOT.CalcMJJ()
     if re.match(r"jet\d+$", options.var): 
@@ -55,7 +62,8 @@ def makeCorrArray(tree, what, obj, ptCorrCut, etaCut, corr, jer={}, _cache={}):
         raise RuntimeError("Missing JER for ",what, obj,"calculation!");
         return None
     cppcalc = makeCalcCpp(what, jercalc)
-    if what.startswith("mhtcorr") and obj=="Gen":
+    if (what.startswith("mhtcorr") or what.startswith("mhttoy") or what.startswith("mhtEvtCorr")) and obj=="Gen":
+    # if (what.startswith("mhtcorr") or what.startswith("mhttoy")) and obj=="Gen":
         # for resolution-corrected mht, don't modify gen mht
         cppcalc.SetSigma(0)
     progress = _progress("  Reading "+obj+"Jets in C++...")
@@ -194,7 +202,7 @@ parser.add_option("-r", dest="rate",  default="10,20,50", type="string", help="C
 parser.add_option("-l","--label", dest="label",  default=None, type="string", help="Extra label for plots")
 parser.add_option("-p", "--pt", dest="pt",  default=30, type="float", help="Choose pt cut")
 parser.add_option("-e", "--eta", dest="eta",  default=2.4, type="float", help="Choose eta")
-parser.add_option("-v", dest="var",  default="ht", help="Choose variable (ht, met, metCentral, mht, jet<N>, mjj, ptj-mjj<M>, mhtsig, mhtsig-mht<M>, mhtcorr<M>)")
+parser.add_option("-v", dest="var",  default="ht", help="Choose variable (ht, met, metCentral, mht, jet<N>, mjj, ptj-mjj<M>, mhtsig, mhtsig-mht<M>, mht-mhtsig<M>, mhtcorr<M>, mhttoy<M>)")
 parser.add_option("--xlabel","--varlabel", dest="varlabel", default=None, help="X axis label for the variable")
 parser.add_option("--xmax", dest="xmax",  default=None, type=float, help="Choose variable")
 parser.add_option("--logxbins", dest="logxbins",  default=None, nargs=2, type=float, help="--logxbins N X will make N bins, the last being a factor X larger than the first")
@@ -224,8 +232,15 @@ elif options.var == "mht":
     if options.eff      is None: options.eff      = "0.5,0.9,0.95"
     qualif = "p_{T}^{corr} > %.0f, |#eta| < %.1f" % (options.pt, options.eta)
     what = options.var
-elif options.var.startswith("mhtcorr"):
+elif options.var.startswith("mhtcorr") or options.var.startswith("mhtEvtCorr"):
     if options.varlabel is None: options.varlabel = "H_{T}^{miss}(1-x#sigma)"
+    if options.genht    is None: options.genht    = 150
+    if options.xmax     is None: options.xmax     = 500
+    if options.eff      is None: options.eff      = "0.95"
+    qualif = "p_{T}^{corr} > %.0f, |#eta| < %.1f" % (options.pt, options.eta)
+    what = options.var
+elif options.var.startswith("mhttoy"):
+    if options.varlabel is None: options.varlabel = "H_{T}^{miss}(toy, X pct)"
     if options.genht    is None: options.genht    = 150
     if options.xmax     is None: options.xmax     = 500
     if options.eff      is None: options.eff      = "0.95"
@@ -234,16 +249,23 @@ elif options.var.startswith("mhtcorr"):
 elif options.var == "mhtsig":
     if options.varlabel is None: options.varlabel = "H_{T}^{miss} significance"
     if options.genht    is None: options.genht    = 150
-    if options.xmax     is None: options.xmax     = 50
+    if options.xmax     is None: options.xmax     = 15
     if options.eff      is None: options.eff      = "0.5,0.9,0.95"
     qualif = "p_{T}^{corr} > %.0f, |#eta| < %.1f" % (options.pt, options.eta)
     what = options.var
 elif options.var.startswith("mhtsig-mht"):
     if options.varlabel is None: options.varlabel = "H_{T}^{miss} significance"
     if options.genht    is None: options.genht    = 150
-    if options.xmax     is None: options.xmax     = 50
+    if options.xmax     is None: options.xmax     = 15
     if options.eff      is None: options.eff      = "0.5,0.9,0.95"
     qualif = "p_{T}^{corr} > %.0f, |#eta| < %.1f, mH_{T}> %s" % (options.pt, options.eta, options.var.replace("mhtsig-mht",""))
+    what = options.var
+elif options.var.startswith("mht-mhtsig"):
+    if options.varlabel is None: options.varlabel = "H_{T}^{miss}"
+    if options.genht    is None: options.genht    = 150
+    if options.xmax     is None: options.xmax     = 500
+    if options.eff      is None: options.eff      = "0.5,0.9,0.95"
+    qualif = "p_{T}^{corr} > %.0f, |#eta| < %.1f, #sigma(mH_{T})> %s" % (options.pt, options.eta, options.var.replace("mht-mhtsig",""))
     what = options.var
 elif options.var == "metmht":
     if options.varlabel is None: options.varlabel = "E_{T}^{miss} - H_{T}^{miss}"
@@ -465,7 +487,7 @@ for plotkind in options.plots.split(","):
       plotparams = [None]
   for plotparam in plotparams:
       for objset,things in whats:
-          if (plotkind == "dist2d") and not (options.var in ["mhtsig","mhtcorr"]): continue
+          if (plotkind == "dist2d") and not (("mhtsig" in options.var) or ("mhtcorr" in options.var) or ("mhttoy" in options.var)): continue
           if options.what and (objset not in options.what.split(",")): continue
           if options.what_reg:
               if not any(re.match(p+"$",objset) for p in options.what_reg.split(",")): 

@@ -12,6 +12,7 @@ parser = OptionParser("%(prog) out what [name1=]file1[,color1]  [name1=]file2[,c
 parser.add_option("--logy", dest="logy", action="store_true", default=False, help="Log y axis")
 parser.add_option("--liny", dest="logy", action="store_true", default=False, help="Linear y axis")
 parser.add_option("--legend", dest="legend", default="BR", help="Legend placement: BR, TR")
+parser.add_option("--suffix", dest="sfx", default="png", help="Choose a file type (or comma-separated list) to write")
 #parser.add_option("-W", dest="what_reg",     default=None, help="Choose set (inputs, l1pf, ...)")
 #parser.add_option("-P","--plots", dest="plots", default="rate,isorate,roc,effc", help="Choose plot or comma-separated list of plots")
 #parser.add_option("-J","--jets", dest="jets", default="ak4", help="Choose jet flavour")
@@ -106,5 +107,11 @@ for n,p in zip(labels,tobjs):
     leg.AddEntry(p, n, "LP")
 leg.Draw()
 
-c1.Print(args[0])
-print "Wrote %s" % args[0]
+
+if (args[0].endswith('.root') or args[0].endswith('.eps') or args[0].endswith('.png') or args[0].endswith('.pdf')):
+    c1.Print(args[0])
+    print "Wrote %s" % args[0]
+else: 
+    for sfx in options.sfx.split(','):
+        c1.Print(args[0]+'.'+sfx)
+        print "Wrote %s" % args[0]+'.'+sfx

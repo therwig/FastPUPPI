@@ -164,18 +164,74 @@ class CalcMHTSig_MHTcut : public JetCalcBase {
                 r = resoCalc_.GetRelReso(fabs(j.eta()), j.pt());
                 retx += x;
                 rety += y;
-                retxe += x * r;
-                retye += y * r;
+                retxe += pow(x * r, 2);
+                retye += pow(y * r, 2);
             }
-            return std::hypot(retx,rety) < mht_ ? 0 : std::hypot(retx,rety) / std::hypot(retxe,retye);
+            return std::hypot(retx,rety) < mht_ ? 0 : std::hypot(retx,rety) / sqrt(retxe+retye);
         }
     protected:
         JetResolutionCalc resoCalc_;
         float mht_;
 };
+class CalcMHT_MHTSigcut : public JetCalcBase {
+    public:
+ CalcMHT_MHTSigcut(JetResolutionCalc resoCalc, float mhtsig) : JetCalcBase(), resoCalc_(resoCalc),mhtsig_(mhtsig)  {}
+        virtual float operator()(const std::vector<Jet> & jets) const {
+            float x,y,r;
+            float retx = 0, rety = 0;
+            float retxe= 0, retye= 0;
+            for (const auto & j : jets) {
+                x = j.pt() * std::cos(j.phi());
+                y = j.pt() * std::sin(j.phi());
+                r = resoCalc_.GetRelReso(fabs(j.eta()), j.pt());
+                retx += x;
+                rety += y;
+                retxe += pow(x * r, 2);
+                retye += pow(y * r, 2);
+            }
+            if (sqrt(retxe+retye)<1e-3) return 0;
+            return std::hypot(retx,rety)/sqrt(retxe+retye) < mhtsig_ ? 0 : std::hypot(retx,rety);
+        }
+    protected:
+        JetResolutionCalc resoCalc_;
+        float mhtsig_;
+};
 class CalcMHTCorr : public JetCalcBase {
     public:
         CalcMHTCorr(JetResolutionCalc resoCalc, float sigma) : JetCalcBase(), resoCalc_(resoCalc),sigma_(sigma)  {}
+        void SetSigma(float s){sigma_=s;}
+        virtual float operator()(const std::vector<Jet> & jets) const {
+            float x,y,r;
+            float retx = 0, rety = 0;
+            /* float retxe= 0, retye= 0; */
+            for (const auto & j : jets) {
+                x = j.pt() * std::cos(j.phi());
+                y = j.pt() * std::sin(j.phi());
+                r = resoCalc_.GetRelReso(fabs(j.eta()), j.pt());
+                if (r*sigma_>1) continue;
+                /* retx += x; */
+                /* rety += y;  */
+                retx += x*(1-r*sigma_);
+                rety += y*(1-r*sigma_);
+                /* retxe += x * r; */
+                /* retye += y * r; */
+                /* retxe += pow(x * r, 2); */
+                /* retye += pow(y * r, 2); */
+            }
+            return std::hypot(retx,rety);
+            /* float ret= std::hypot(retx,rety) - sigma_ * sqrt(retxe+retye); */
+            /* float ret= std::hypot(retx,rety) - sigma_ * std::hypot(retxe,retye); */
+            /* if (ret<0) ret=0; */
+            /* return ret; */
+            // sigma=2 means we are 95% sure that MET is below this value...
+        }
+    protected:
+        JetResolutionCalc resoCalc_;
+        float sigma_;
+};
+class CalcMHTCorrEvt : public JetCalcBase {
+    public:
+        CalcMHTCorrEvt(JetResolutionCalc resoCalc, float sigma) : JetCalcBase(), resoCalc_(resoCalc),sigma_(sigma)  {}
         void SetSigma(float s){sigma_=s;}
         virtual float operator()(const std::vector<Jet> & jets) const {
             float x,y,r;
@@ -187,10 +243,12 @@ class CalcMHTCorr : public JetCalcBase {
                 r = resoCalc_.GetRelReso(fabs(j.eta()), j.pt());
                 retx += x;
                 rety += y;
-                retxe += x * r;
-                retye += y * r;
+                retxe += pow(x * r, 2);
+                retye += pow(y * r, 2);
             }
-            float ret= std::hypot(retx,rety) - sigma_ * std::hypot(retxe,retye);
+            // return std::hypot(retx,rety);
+            float ret = std::hypot(retx,rety) - sigma_ * sqrt(retxe+retye);
+            /* float ret= std::hypot(retx,rety) - sigma_ * std::hypot(retxe,retye); */
             if (ret<0) ret=0;
             return ret;
             // sigma=2 means we are 95% sure that MET is below this value...
@@ -199,23 +257,92 @@ class CalcMHTCorr : public JetCalcBase {
         JetResolutionCalc resoCalc_;
         float sigma_;
 };
+class OLD_CalcMHTCorr : public JetCalcBase {
+ public:
+ OLD_CalcMHTCorr(JetResolutionCalc resoCalc, float sigma) : JetCalcBase(), resoCalc_(resoCalc),sigma_(sigma)  {}
+    void SetSigma(float s){sigma_=s;}
+    virtual float operator()(const std::vector<Jet> & jets) const {
+        float x,y,r;
+        float retx = 0, rety = 0;
+        float retxe= 0, retye= 0;
+        for (const auto & j : jets) {
+            x = j.pt() * std::cos(j.phi());
+            y = j.pt() * std::sin(j.phi());
+            r = resoCalc_.GetRelReso(fabs(j.eta()), j.pt());
+            retx += x;
+            rety += y;
+            retxe += x * r;
+            retye += y * r;
+        }
+        float ret= std::hypot(retx,rety) - sigma_ * std::hypot(retxe,retye);
+        if (ret<0) ret=0;
+        return ret;
+        // sigma=2 means we are 95% sure that MET is below this value...
+    }
+ protected:
+    JetResolutionCalc resoCalc_;
+    float sigma_;
+};
+class CalcMHTToy : public JetCalcBase {
+    public:
+        CalcMHTToy(JetResolutionCalc resoCalc, float sigma, int nToy=100) : 
+          JetCalcBase(), resoCalc_(resoCalc), sigma_(sigma), nToy_(nToy) {r_ = new TRandom3(1);}
+        ~CalcMHTToy(){if(r_) delete r_;}
+        void SetSigma(float s){sigma_=s;}
+        virtual float operator()(const std::vector<Jet> & jets) const {
+            float x,y,r;
+            vector<float> mets;
+            mets.reserve(nToy_);
+            for(int iToy=0; iToy<nToy_;iToy++){
+                float metx = 0, mety = 0;
+                for (const auto & j : jets) {
+                    x = j.pt() * std::cos(j.phi());
+                    y = j.pt() * std::sin(j.phi());
+                    r = r_->Gaus(1., resoCalc_.GetRelReso(fabs(j.eta()), j.pt()));
+                    metx += x*r;
+                    mety += y*r;
+                }
+                mets.push_back( std::hypot(metx,mety) );
+            }
+            std::sort( mets.begin(), mets.end() );
+            float pval = 0.5 * (1 + TMath::Erf(sigma_ / sqrt(2.)));
+            return mets.at( std::round(pval*(mets.size()-1)) );
+        }
+    protected:
+        JetResolutionCalc resoCalc_;
+        float sigma_;
+        TRandom3* r_;
+        int nToy_;
+};
 class CalcMHTSig : public JetCalcBase {
     public:
         CalcMHTSig(JetResolutionCalc resoCalc) : JetCalcBase(), resoCalc_(resoCalc)  {}
         virtual float operator()(const std::vector<Jet> & jets) const {
             float x,y,r;
             float retx = 0, rety = 0;
-            float retxe= 0, retye= 0;
+            /* float retxe= 0, retye= 0; */
+            float retxe2= 0, retye2= 0;
+            static int iEvt=0;
             for (const auto & j : jets) {
                 x = j.pt() * std::cos(j.phi());
                 y = j.pt() * std::sin(j.phi());
                 r = resoCalc_.GetRelReso(fabs(j.eta()), j.pt());
                 retx += x;
                 rety += y;
-                retxe += x * r;
-                retye += y * r;
+                /* retxe += x * r; */
+                /* retye += y * r; */
+                retxe2 += pow(x * r, 2);
+                retye2 += pow(y * r, 2);
+                /* if (iEvt<10) cout << " xr " << x*r << endl; */
+                /* if (iEvt<10) cout << " yr " << y*r << endl; */
+                /* if (iEvt<10) cout << " xr2" << pow(x*r, 2) << endl; */
+                /* if (iEvt<10) cout << " yr2" << pow(y*r, 2) << endl; */
             }
-            return jets.size()==0 ? 0 : std::hypot(retx,rety) / std::hypot(retxe,retye);
+            //if (iEvt<10) printf(" x,y,xe,ye1 %f %f %f %f ||ht,hte %f %f || %f \n",retx,rety,retxe,retye, std::hypot(retx,rety) , std::hypot(retxe,retye), std::hypot(retx,rety) / std::hypot(retxe,retye));
+            //if (iEvt<10) printf(" x,y,xe,ye2 %f %f %f %f ||ht,hte %f %f || %f \n",retx,rety,retxe2,retye2, std::hypot(retx,rety) , sqrt(retxe2+retye2), std::hypot(retx,rety) / sqrt(retxe2+retye2));
+            //iEvt++;
+            return jets.size()==0 ? 0 : std::hypot(retx,rety) / sqrt(retxe2+retye2);
+            /* return jets.size()==0 ? 0 : std::hypot(retx,rety) / std::hypot(retxe,retye); */
         }
     protected:
         JetResolutionCalc resoCalc_;
